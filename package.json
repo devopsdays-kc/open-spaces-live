@@ -9,7 +9,7 @@
 		"lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
 		"preview": "vite preview",
 		"deploy": "wrangler deploy",
-		"db:migrate": "wrangler d1 migrations apply open-spaces-live",
+		"db:migrate": "wrangler d1 migrations apply open-spaces-live --remote",
 		"db:seed-admin": "node scripts/seed-admin.js"
 	},
 	"dependencies": {
