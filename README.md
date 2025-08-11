@@ -1,6 +1,6 @@
 # Open Spaces Live
 
-![Version](https://img.shields.io/badge/version-v0.1.0-blue)
+![Version](https://img.shields.io/badge/version-v0.2.0-blue)
 ![React](https://img.shields.io/badge/React-v19.1.0-blue)
 ![Vite](https://img.shields.io/badge/Vite-v7.1.1-blue)
 

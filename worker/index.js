@@ -158,6 +158,7 @@ api.get('/slots', requireFacilitator, async (c) => {
 	const { results } = await db.prepare(
 		'SELECT slots.*, rooms.name as roomName FROM slots LEFT JOIN rooms ON slots.roomId = rooms.id ORDER BY slots.start_time, rooms.name'
 	).all();
+	c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 	return c.json(results);
 });
 
@@ -206,6 +207,7 @@ api.patch('/slots/:id', requireFacilitator, async (c) => {
 api.get('/rooms', requireFacilitator, async (c) => {
     const db = c.get('db');
     const { results } = await db.prepare('SELECT * FROM rooms ORDER BY name').all();
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     return c.json(results);
 });
 
@@ -244,6 +246,7 @@ api.get('/admin/users', requireAdmin, async (c) => {
 	const db = c.get('db');
 	try {
 		const { results } = await db.prepare('SELECT id, email, role FROM users ORDER BY email').all();
+		c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 		return c.json(results);
 	} catch (e) {
 		console.error('Failed to fetch users:', e);
@@ -390,7 +393,10 @@ api.get('/ideas', async (c) => {
 	const kv = c.get('kv');
 	// Only list keys with the 'idea:' prefix
 	const { keys } = await kv.list({ prefix: 'idea:' });
-	const ideas = await Promise.all(keys.map(({ name }) => kv.get(name, 'json')));
+	const ideasWithNulls = await Promise.all(keys.map(({ name }) => kv.get(name, 'json')));
+	// Filter out nulls in case a key was deleted/expired between the LIST and GET operations
+	const ideas = ideasWithNulls.filter(idea => idea !== null);
+	c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 	return c.json(ideas);
 });
 
@@ -575,6 +581,7 @@ api.get('/schedule', async (c) => {
 				}
 			});
 
+		c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 		return c.json(schedule);
 
 	} catch (error) {
