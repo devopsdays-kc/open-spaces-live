@@ -1,0 +1,106 @@
+.schedule-container {
+    width: 100%;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.schedule-container h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.schedule-grid {
+    display: grid;
+    grid-template-columns: 100px repeat(var(--num-rooms, 1), 1fr);
+    gap: 10px;
+    background-color: #2c2c2c;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.grid-header {
+    background-color: #222;
+    color: white;
+    padding: 1rem;
+    font-weight: bold;
+    text-align: center;
+}
+
+.grid-time-slot {
+    background-color: #222;
+    padding: 1rem;
+    font-weight: bold;
+    text-align: right;
+    grid-column: 1 / 2;
+}
+
+.grid-cell {
+    background-color: #3e3e3e;
+    padding: 1rem;
+    border-radius: 4px;
+    min-height: 150px;
+}
+
+.session-card {
+    background-color: #4a4a4a;
+    color: white;
+    padding: 1rem;
+    border-radius: 4px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.session-card h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+}
+
+.session-card p {
+    margin: 0;
+    flex-grow: 1;
+    font-size: 0.9rem;
+}
+
+.session-author {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    font-style: italic;
+    text-align: right;
+}
+
+.empty-cell {
+    height: 100%;
+}
+
+@media (max-width: 768px) {
+    .schedule-grid {
+        display: block; /* Switch from grid to block layout */
+    }
+
+    .grid-header {
+        display: none; /* Hide the desktop headers */
+    }
+
+    .grid-time-slot {
+        background-color: #222;
+        padding: 1rem;
+        font-weight: bold;
+        text-align: center; /* Center the time */
+        border-bottom: 2px solid #333;
+    }
+
+    .grid-cell {
+        display: block;
+        width: 100%;
+        min-height: auto;
+        padding: 0;
+        border-bottom: 1px solid #333;
+    }
+
+    .session-card {
+        border-radius: 0;
+        border-left: 5px solid #007bff; /* Add a color accent for sessions */
+    }
+}
