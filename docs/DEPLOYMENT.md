@@ -41,10 +41,10 @@ The application relies on three Cloudflare services: a D1 database for persisten
 
 ### 1. Create a D1 Database
 
-Run the following command to create a new D1 database. You can replace `open-spaces-live-db` with any name you prefer.
+Run the following command to create a new D1 database. The name `open-spaces-live` is recommended as it matches the default project configuration.
 
 ```bash
-npx wrangler d1 create open-spaces-live-db
+npx wrangler d1 create open-spaces-live
 ```
 
 After running the command, Wrangler will output the database details. **Copy the `database_id`** from the output.
