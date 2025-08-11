@@ -33,7 +33,7 @@ async function main() {
 	// Note: We need to find the database name from wrangler.jsonc, but for now we'll hardcode it.
 	// A more robust solution might parse the config file.
 	const dbName = 'open-spaces-live';
-	const command = `npx wrangler d1 execute ${dbName} --command "${sql}"`;
+	const command = `npx wrangler d1 execute ${dbName} --remote --command "${sql}"`;
 
 	console.log('Executing command...');
 	console.log(command);
