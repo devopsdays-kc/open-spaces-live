@@ -511,3 +511,16 @@ button:hover {
 	border-radius: 4px;
 	display: inline-block;
 }
+
+.instruction-text {
+	font-size: 0.9em;
+	color: #aaa;
+	margin-top: -10px;
+	margin-bottom: 15px;
+}
+
+/* Schedule Page Styles */
+.schedule-container h1 {
+	text-align: center;
+	margin-bottom: 2rem;
+}

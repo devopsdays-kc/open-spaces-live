@@ -29,6 +29,19 @@ function IdeaManager({ ideas, slots, rooms, fetchIdeas }) {
 	const slotsMap = new Map(slots.map(slot => [slot.id, slot]));
 	const roomsMap = new Map(rooms.map(room => [room.id, room]));
 
+	const openMergeModal = () => {
+		const ideasToMerge = ideas.filter(idea => selectedIdeas.has(idea.id));
+
+		const titles = ideasToMerge.map(idea => idea.title).join(' / ');
+		const descriptions = ideasToMerge
+			.map(idea => `--- IDEA: "${idea.title}" ---\n${idea.description}`)
+			.join('\n\n');
+
+		setMergeTitle(titles);
+		setMergeDescription(descriptions);
+		setShowMergeModal(true);
+	};
+
 	const handleDeleteIdea = async (ideaId) => {
 		if (window.confirm('Are you sure you want to delete this idea? This action cannot be undone.')) {
 			try {
@@ -59,6 +72,10 @@ function IdeaManager({ ideas, slots, rooms, fetchIdeas }) {
 	const handleMergeSubmit = async (e) => {
 		e.preventDefault();
 		setIdeaError(null);
+
+		if (!window.confirm('Are you sure you want to merge these ideas? This will archive the original ideas and create a new one.')) {
+			return;
+		}
 
 		try {
 			const response = await fetch('/api/ideas/merge', {
@@ -124,8 +141,9 @@ function IdeaManager({ ideas, slots, rooms, fetchIdeas }) {
 	return (
 		<div className="card idea-manager">
 			<h3>Manage Ideas</h3>
+			<p className="instruction-text">Select two or more ideas using the checkboxes to merge them into a single session.</p>
 			{selectedIdeas.size > 1 && (
-				<button type="button" onClick={() => setShowMergeModal(true)} className="merge-button">Merge Selected ({selectedIdeas.size})</button>
+				<button type="button" onClick={openMergeModal} className="merge-button">Merge Selected ({selectedIdeas.size})</button>
 			)}
 			{ideaError && <p className="error-message">{ideaError}</p>}
 			<div className="idea-list">
@@ -433,6 +451,10 @@ function Dashboard({ user }) {
 	const handleMergeSubmit = async (e) => {
 		e.preventDefault();
 		setIdeaError(null);
+
+		if (!window.confirm('Are you sure you want to merge these ideas? This will archive the original ideas and create a new one.')) {
+			return;
+		}
 
 		try {
 			const response = await fetch('/api/ideas/merge', {
