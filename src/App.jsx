@@ -6,6 +6,19 @@ import ProtectedRoute from './ProtectedRoute';
 import Schedule from './Schedule'; // Import the new component
 import './App.css';
 
+function Modal({ children, onClose }) {
+	return (
+		<div className="modal-backdrop" onClick={onClose}>
+			<div className="modal-content" onClick={(e) => e.stopPropagation()}>
+				<button type="button" className="modal-close" onClick={onClose}>
+					&times;
+				</button>
+				{children}
+			</div>
+		</div>
+	);
+}
+
 function Header({ user, onLogoutClick, onLoginClick }) {
 	return (
 		<header className="app-header">

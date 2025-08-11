@@ -25,6 +25,10 @@ function IdeaManager({ ideas, slots, rooms, fetchIdeas }) {
 	const [assignSlotId, setAssignSlotId] = useState('');
 	const [assignRoomId, setAssignRoomId] = useState('');
 
+	// Create lookup maps for slots and rooms for efficient rendering
+	const slotsMap = new Map(slots.map(slot => [slot.id, slot]));
+	const roomsMap = new Map(rooms.map(room => [room.id, room]));
+
 	const handleDeleteIdea = async (ideaId) => {
 		if (window.confirm('Are you sure you want to delete this idea? This action cannot be undone.')) {
 			try {
@@ -139,9 +143,16 @@ function IdeaManager({ ideas, slots, rooms, fetchIdeas }) {
 							<div className="idea-info">
 								<strong>{idea.title}</strong> (Votes: {idea.votes})
 								<p>{idea.description}</p>
+								{idea.slotId && idea.roomId && (
+									<div className="assignment-info">
+										Scheduled for: <strong>{slotsMap.get(idea.slotId)?.start_time}</strong> in <strong>{roomsMap.get(idea.roomId)?.name}</strong>
+									</div>
+								)}
 							</div>
 							<div className="idea-actions">
-								<button type="button" onClick={() => openAssignModal(idea)} className="assign-button">Assign</button>
+								<button type="button" onClick={() => openAssignModal(idea)} className="assign-button">
+									{idea.slotId ? 'Re-assign' : 'Assign'}
+								</button>
 								<button type="button" onClick={() => handleDeleteIdea(idea.id)} className="delete-button">Delete</button>
 							</div>
 						</li>

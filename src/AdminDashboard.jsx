@@ -51,6 +51,25 @@ function AdminDashboard() {
 		}
 	};
 
+	const handleDeleteUser = async (userId) => {
+		if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+			try {
+				const response = await fetch(`/api/admin/users/${userId}`, {
+					method: 'DELETE',
+				});
+				const data = await response.json();
+				if (response.ok) {
+					setMessage(data.message);
+					fetchUsers(); // Refresh the user list
+				} else {
+					throw new Error(data.error || 'Failed to delete user.');
+				}
+			} catch (error) {
+				setMessage(error.message);
+			}
+		}
+	};
+
 	return (
 		<div className="card admin-manager">
 			<h3>Admin Controls</h3>
@@ -86,6 +105,7 @@ function AdminDashboard() {
 						<li key={user.id}>
 							<span>{user.email}</span>
 							<span className="user-role">{user.role}</span>
+							<button type="button" onClick={() => handleDeleteUser(user.id)} className="delete-button">Delete</button>
 						</li>
 					))}
 				</ul>

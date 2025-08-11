@@ -7,9 +7,9 @@ async function sendEmail({ to, subject, text, html }) {
 }
 
 export async function sendEmailWithMailgun(env, { to, subject, text, html }) {
-  const { MAILGUN_API_KEY, MAILGUN_DOMAIN, MAIL_FROM } = env;
+  const { MAILGUN_API_KEY, MAILGUN_DOMAIN, MAILGUN_FROM } = env;
 
-  if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN || !MAIL_FROM) {
+  if (!MAILGUN_API_KEY || !MAILGUN_DOMAIN || !MAILGUN_FROM) {
     console.error("Mailgun environment variables are not set. Email not sent.");
     // In a real app, you might want to throw an error or handle this more gracefully.
     return { success: false, error: "Email service is not configured." };
@@ -18,7 +18,7 @@ export async function sendEmailWithMailgun(env, { to, subject, text, html }) {
   const endpoint = `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`;
 
   const formData = new URLSearchParams();
-  formData.append('from', `Open Spaces Live <${MAIL_FROM}>`);
+  formData.append('from', `Open Spaces Live <${MAILGUN_FROM}>`);
   formData.append('to', to);
   formData.append('subject', subject);
   if (text) formData.append('text', text);

@@ -81,7 +81,7 @@ api.post('/auth/login', async (c) => {
 	const token = crypto.randomUUID();
 	const magicLink = `${new URL(c.req.url).origin}/verify-login?token=${token}`;
 
-	// TEMPORARY: Log the magic link for testing while Mailgun is being set up.
+	// TEMPORARY: Log the magic link for testing.
 	console.log(`Magic Link for ${email}: ${magicLink}`);
 
 	await c.env.KV.put(`token:${token}`, JSON.stringify({ email, role }), {
@@ -277,7 +277,7 @@ api.post('/admin/users', requireAdmin, async (c) => {
 		const token = crypto.randomUUID();
 		const magicLink = `${new URL(c.req.url).origin}/verify-login?token=${token}`;
 
-		// TEMPORARY: Log the magic link for testing while Mailgun is being set up.
+		// TEMPORARY: Log the magic link for testing.
 		console.log(`Invite Link for ${email}: ${magicLink}`);
 
 		await c.env.KV.put(`token:${token}`, JSON.stringify({ email, role }), {
@@ -304,6 +304,28 @@ api.post('/admin/users', requireAdmin, async (c) => {
 	} catch (e) {
 		console.error('Failed to create user:', e);
 		return c.json({ error: 'Database error while creating user' }, 500);
+	}
+});
+
+api.delete('/admin/users/:id', requireAdmin, async (c) => {
+	const db = c.get('db');
+	const { id } = c.req.param();
+	const currentUser = c.get('user');
+
+	if (id === currentUser.id) {
+		return c.json({ error: 'You cannot delete your own account.' }, 400);
+	}
+
+	try {
+		const { success } = await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+		if (success) {
+			return c.json({ success: true, message: 'User deleted successfully.' });
+		} else {
+			return c.json({ error: 'User not found or could not be deleted.' }, 404);
+		}
+	} catch (e) {
+		console.error('Failed to delete user:', e);
+		return c.json({ error: 'Database error while deleting user.' }, 500);
 	}
 });
 
