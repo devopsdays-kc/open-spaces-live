@@ -238,7 +238,7 @@ function IdeaManager({ ideas, slots, rooms, fetchIdeas }) {
 }
 
 
-function Dashboard({ user }) {
+function Dashboard({ user, conferenceName, onConferenceNameUpdate }) {
 	const [activeTab, setActiveTab] = useState('ideas'); // 'ideas', 'slots', 'rooms', 'users'
 
 	// All the state and logic for the different managers will remain here for now
@@ -680,7 +680,12 @@ function Dashboard({ user }) {
 					</div>
 				)}
 
-				{activeTab === 'users' && user && user.role === 'admin' && <AdminDashboard />}
+				{activeTab === 'users' && user && user.role === 'admin' &&
+					<AdminDashboard
+						conferenceName={conferenceName}
+						onConferenceNameUpdate={onConferenceNameUpdate}
+					/>
+				}
 			</div>
 
 			{showAssignRoomModal && selectedSlot && (

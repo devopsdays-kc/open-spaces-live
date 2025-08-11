@@ -19,11 +19,11 @@ function Modal({ children, onClose }) {
 	);
 }
 
-function Header({ user, onLogoutClick, onLoginClick }) {
+function Header({ user, conferenceName, onLogoutClick, onLoginClick }) {
 	return (
 		<header className="app-header">
 			<span className="header-title">
-				<Link to="/">Open Spaces Live</Link>
+				<Link to="/">Open Spaces Live{conferenceName && ` - ${conferenceName}`}</Link>
 			</span>
 			<div className="auth-section">
 				<Link to="/schedule" className="header-link">Schedule</Link>
@@ -199,6 +199,7 @@ function HomePage({ showLoginModal, setShowLoginModal, user }) {
 
 function App() {
 	const [user, setUser] = useState(null);
+	const [conferenceName, setConferenceName] = useState('');
 	const [loading, setLoading] = useState(true);
 	const [showLoginModal, setShowLoginModal] = useState(false);
 	const navigate = useNavigate();
@@ -210,6 +211,7 @@ function App() {
 			if (response.ok) {
 				const data = await response.json();
 				setUser(data.user);
+				setConferenceName(data.conferenceName);
 			} else {
 				setUser(null);
 			}
@@ -235,7 +237,7 @@ function App() {
 
 	return (
 		<div className="app-container">
-			<Header user={user} onLogoutClick={handleLogout} onLoginClick={() => setShowLoginModal(true)} />
+			<Header user={user} conferenceName={conferenceName} onLogoutClick={handleLogout} onLoginClick={() => setShowLoginModal(true)} />
 			{/* The main app-main should be here, wrapping the routes */}
 			<main className="app-main">
 				<Routes>
@@ -247,7 +249,7 @@ function App() {
 						path="/dashboard"
 						element={
 							<ProtectedRoute user={user} allowedRoles={['facilitator', 'admin']}>
-								<Dashboard user={user} />
+								<Dashboard user={user} conferenceName={conferenceName} onConferenceNameUpdate={setConferenceName} />
 							</ProtectedRoute>
 						}
 					/>

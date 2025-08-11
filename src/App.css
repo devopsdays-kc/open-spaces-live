@@ -512,6 +512,24 @@ button:hover {
 	display: inline-block;
 }
 
+.danger-zone {
+	border: 2px solid #ff4d4d;
+	border-radius: 8px;
+	padding: 1rem;
+	background-color: rgba(255, 77, 77, 0.1);
+}
+
+.danger-zone h4 {
+	color: #ff4d4d;
+	margin-top: 0;
+}
+
+.danger-buttons {
+	display: flex;
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
 .instruction-text {
 	font-size: 0.9em;
 	color: #aaa;

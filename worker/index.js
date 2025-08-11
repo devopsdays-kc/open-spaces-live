@@ -138,7 +138,8 @@ api.get('/auth/verify', async (c) => {
 
 api.get('/auth/me', async (c) => {
 	const user = c.get('user');
-	return c.json({ user });
+	const conferenceName = await c.env.KV.get('conference_name');
+	return c.json({ user, conferenceName });
 });
 
 api.post('/auth/logout', async (c) => {
@@ -329,6 +330,61 @@ api.delete('/admin/users/:id', requireAdmin, async (c) => {
 	}
 });
 
+api.post('/admin/conference-name', requireAdmin, async (c) => {
+	const kv = c.get('kv');
+	const { name } = await c.req.json();
+
+	if (!name) {
+		return c.json({ error: 'Conference name is required' }, 400);
+	}
+
+	await kv.put('conference_name', name);
+	return c.json({ success: true, name });
+});
+
+api.post('/admin/reset-votes', requireAdmin, async (c) => {
+	const kv = c.get('kv');
+	try {
+		const { keys } = await kv.list({ prefix: 'idea:' });
+		for (const key of keys) {
+			const idea = await kv.get(key.name, 'json');
+			if (idea && !idea.slotId) { // Only reset votes for unscheduled ideas
+				idea.votes = 0;
+				idea.voters = [];
+				await kv.put(key.name, JSON.stringify(idea), { expirationTtl: 259200 });
+			}
+		}
+		return c.json({ success: true, message: 'Votes for all unscheduled ideas have been reset.' });
+	} catch (e) {
+		console.error('Failed to reset votes:', e);
+		return c.json({ error: 'Failed to reset votes.' }, 500);
+	}
+});
+
+api.post('/admin/full-reset', requireAdmin, async (c) => {
+	const kv = c.get('kv');
+	const db = c.get('db');
+	try {
+		// Delete all ideas from KV
+		const { keys } = await kv.list({ prefix: 'idea:' });
+		for (const key of keys) {
+			await kv.delete(key.name);
+		}
+
+		// Delete all slots and rooms from D1
+		await db.prepare('DELETE FROM slots').run();
+		await db.prepare('DELETE FROM rooms').run();
+
+		// Reset conference name in KV
+		await kv.delete('conference_name');
+
+		return c.json({ success: true, message: 'The application has been fully reset.' });
+	} catch (e) {
+		console.error('Failed to perform full reset:', e);
+		return c.json({ error: 'Failed to perform full reset.' }, 500);
+	}
+});
+
 // Idea management endpoints (public)
 api.get('/ideas', async (c) => {
 	const kv = c.get('kv');
@@ -362,7 +418,7 @@ api.post('/ideas', async (c) => {
 	};
 
 	// Add the 'idea:' prefix when storing a new idea
-	await kv.put(`idea:${id}`, JSON.stringify(newIdea), { expirationTtl: 86400 }); // 24-hour expiry
+	await kv.put(`idea:${id}`, JSON.stringify(newIdea), { expirationTtl: 259200 }); // 72-hour expiry
 	return c.json(newIdea, 201);
 });
 
@@ -388,7 +444,7 @@ api.post('/ideas/:id/vote', async (c) => {
 	}
 
 	// Use the 'idea:' prefix when updating the item
-	await kv.put(`idea:${id}`, JSON.stringify(idea), { expirationTtl: 86400 });
+	await kv.put(`idea:${id}`, JSON.stringify(idea), { expirationTtl: 259200 });
 	return c.json(idea);
 });
 
@@ -445,13 +501,13 @@ api.post('/ideas/merge', requireFacilitator, async (c) => {
         status: 'active',
         mergedFrom: ideaIds, // Keep track of original ideas
     };
-    await kv.put(`idea:${mergedIdeaId}`, JSON.stringify(mergedIdea), { expirationTtl: 86400 });
+    await kv.put(`idea:${mergedIdeaId}`, JSON.stringify(mergedIdea), { expirationTtl: 259200 });
 
     // Mark original ideas as merged
     for (const idea of originalIdeas) {
         idea.status = 'merged';
         idea.mergedInto = mergedIdeaId;
-        await kv.put(`idea:${idea.id}`, JSON.stringify(idea), { expirationTtl: 86400 });
+        await kv.put(`idea:${idea.id}`, JSON.stringify(idea), { expirationTtl: 259200 });
     }
 
     return c.json({ success: true, mergedIdea });
@@ -474,7 +530,7 @@ api.post('/ideas/:id/assign', requireFacilitator, async (c) => {
     idea.slotId = slotId;
     idea.roomId = roomId;
 
-    await kv.put(`idea:${id}`, JSON.stringify(idea), { expirationTtl: 86400 });
+    await kv.put(`idea:${id}`, JSON.stringify(idea), { expirationTtl: 259200 });
 
     return c.json({ success: true, idea });
 });
