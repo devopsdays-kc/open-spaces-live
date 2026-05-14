@@ -1,35 +1,41 @@
 {
 	"name": "open-spaces-live",
 	"private": true,
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
-		"lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+		"lint": "eslint . --report-unused-disable-directives --max-warnings 0",
 		"preview": "vite preview",
-		"deploy": "wrangler deploy",
-		"db:migrate": "wrangler d1 migrations apply open-spaces-live --remote",
-		"db:seed-admin": "node scripts/seed-admin.js"
+		"deploy": "vite build && wrangler deploy",
+		"db:migrate:local": "wrangler d1 migrations apply open-spaces-live-db --local",
+		"db:migrate:remote": "wrangler d1 migrations apply open-spaces-live-db --remote",
+		"db:seed-admin": "node scripts/seed-admin.js",
+		"test": "vitest run"
 	},
 	"dependencies": {
-		"hono": "^4.9.0",
-		"react": "^19.1.0",
-		"react-dom": "^19.1.0",
-		"react-router-dom": "^7.8.0"
+		"@dnd-kit/core": "^6.3.1",
+		"@dnd-kit/sortable": "^10.0.0",
+		"hono": "^4.12.18",
+		"react": "^19.2.6",
+		"react-dom": "^19.2.6",
+		"react-router-dom": "^7.15.0",
+		"zustand": "^5.0.13"
 	},
 	"devDependencies": {
-		"@cloudflare/vite-plugin": "^1.11.2",
-		"@eslint/js": "^9.30.1",
-		"@types/react": "^19.1.8",
-		"@types/react-dom": "^19.1.6",
-		"@vitejs/plugin-react": "^5.0.0",
-		"eslint": "^8.57.0",
-		"eslint-plugin-react": "^7.34.1",
-		"eslint-plugin-react-hooks": "^4.6.0",
-		"eslint-plugin-react-refresh": "^0.4.6",
-		"globals": "^16.3.0",
-		"vite": "^5.2.0",
-		"wrangler": "^3.57.0"
+		"@cloudflare/vite-plugin": "^1.36.4",
+		"@eslint/js": "^9.39.4",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^6.0.1",
+		"eslint": "^9.39.4",
+		"eslint-plugin-react": "^7.37.5",
+		"eslint-plugin-react-hooks": "^7.1.1",
+		"eslint-plugin-react-refresh": "^0.5.2",
+		"globals": "^17.6.0",
+		"vite": "^8.0.12",
+		"vitest": "^4.1.6",
+		"wrangler": "^4.90.1"
 	}
 }
