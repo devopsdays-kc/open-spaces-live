@@ -1,0 +1,386 @@
+import { describe, it, expect } from 'vitest';
+import { Hono } from 'hono';
+import ideasApp from '../ideas.js';
+
+// ---------------------------------------------------------------------------
+// Fakes
+// ---------------------------------------------------------------------------
+
+function fakeKv() {
+	const store = new Map();
+	return {
+		store,
+		async get(k, type) {
+			const v = store.get(k) ?? null;
+			if (type === 'json' && v) return JSON.parse(v);
+			return v;
+		},
+		async put(k, v) { store.set(k, typeof v === 'string' ? v : JSON.stringify(v)); },
+		async delete(k) { store.delete(k); },
+		async list({ prefix }) {
+			return { keys: [...store.keys()].filter(k => k.startsWith(prefix)).map(k => ({ name: k })) };
+		},
+	};
+}
+
+function fakeDo() {
+	const sent = [];
+	return {
+		EVENT_ROOM: {
+			idFromName: () => 'main',
+			get: () => ({
+				fetch: async (url, init) => {
+					sent.push({ url, body: JSON.parse(init.body) });
+					return new Response('ok');
+				},
+			}),
+		},
+		_sent: sent,
+	};
+}
+
+/**
+ * Minimal stateful fake D1.
+ *
+ * Tracks ideas + votes in-memory. Parses just enough SQL keywords to dispatch
+ * to the right handler for each query the route module actually issues.
+ */
+function fakeDb(opts = {}) {
+	// Allow callers to inject pre-seeded ideas and votes.
+	const ideas = opts.ideas ? [...opts.ideas] : [];
+	const votes = opts.votes ? [...opts.votes] : [];
+
+	// nextInsertChanges lets tests control whether INSERT OR IGNORE fires.
+	let nextInsertChanges = opts.nextInsertChanges ?? 1;
+
+	const self = {
+		ideas,
+		votes,
+		setNextInsertChanges(n) { nextInsertChanges = n; },
+
+		async batch(stmts) {
+			const results = [];
+			for (const stmt of stmts) results.push(await stmt.run());
+			return results;
+		},
+
+		prepare(sql) {
+			const s = sql.trim().replace(/\s+/g, ' ').toUpperCase();
+			return {
+				bind(...args) {
+					return {
+						async run() {
+							// INSERT INTO ideas
+							if (s.startsWith('INSERT INTO IDEAS')) {
+								const [id, title, description, submitter_id, , status, created_at, updated_at] = args;
+								ideas.push({ id, title, description, submitter_id, vote_count: 0, status, slot_id: null, room_id: null, merged_into_id: null, created_at, updated_at });
+								return { meta: { changes: 1 } };
+							}
+							// INSERT OR IGNORE INTO votes
+							if (s.startsWith('INSERT OR IGNORE INTO VOTES') && !s.includes('SELECT')) {
+								const [idea_id, attendee_id, created_at] = args;
+								const exists = votes.some(v => v.idea_id === idea_id && v.attendee_id === attendee_id);
+								if (!exists) {
+									votes.push({ idea_id, attendee_id, created_at });
+									return { meta: { changes: nextInsertChanges } };
+								}
+								return { meta: { changes: 0 } };
+							}
+							// INSERT OR IGNORE INTO votes ... SELECT (merge)
+							if (s.startsWith('INSERT OR IGNORE INTO VOTES') && s.includes('SELECT')) {
+								const [primaryId, ...mergeIds] = args;
+								let changes = 0;
+								for (const v of votes.filter(v => mergeIds.includes(v.idea_id))) {
+									if (!votes.some(x => x.idea_id === primaryId && x.attendee_id === v.attendee_id)) {
+										votes.push({ idea_id: primaryId, attendee_id: v.attendee_id, created_at: v.created_at });
+										changes++;
+									}
+								}
+								return { meta: { changes } };
+							}
+							// DELETE FROM votes
+							if (s.startsWith('DELETE FROM VOTES')) {
+								const [idea_id, attendee_id] = args;
+								const before = votes.length;
+								const idx = votes.findIndex(v => v.idea_id === idea_id && v.attendee_id === attendee_id);
+								if (idx !== -1) votes.splice(idx, 1);
+								return { meta: { changes: before - votes.length } };
+							}
+							// UPDATE ideas SET vote_count = vote_count + 1
+							if (s.includes('VOTE_COUNT = VOTE_COUNT + 1')) {
+								const [, id] = args;
+								const idea = ideas.find(i => i.id === id);
+								if (idea) { idea.vote_count += 1; idea.updated_at = args[0]; }
+								return { meta: { changes: idea ? 1 : 0 } };
+							}
+							// UPDATE ideas SET vote_count = MAX(vote_count - 1, 0)
+							if (s.includes('VOTE_COUNT = MAX(VOTE_COUNT - 1')) {
+								const [, id] = args;
+								const idea = ideas.find(i => i.id === id);
+								if (idea) { idea.vote_count = Math.max(idea.vote_count - 1, 0); idea.updated_at = args[0]; }
+								return { meta: { changes: idea ? 1 : 0 } };
+							}
+							// UPDATE ideas SET slot_id, room_id, status (assign)
+							if (s.includes('SLOT_ID = ?, ROOM_ID = ?, STATUS = ?')) {
+								const [slot_id, room_id, status, updated_at, id] = args;
+								if (opts.assignThrowsUnique) throw new Error('UNIQUE constraint failed');
+								const idea = ideas.find(i => i.id === id);
+								if (!idea) return { meta: { changes: 0 } };
+								Object.assign(idea, { slot_id, room_id, status, updated_at });
+								return { meta: { changes: 1 } };
+							}
+							// UPDATE ideas SET vote_count = (SELECT COUNT(*)) (merge recount)
+							if (s.includes('VOTE_COUNT = (SELECT COUNT(*)')) {
+								const [primaryId, updatedAt, id] = args;
+								const idea = ideas.find(i => i.id === id);
+								if (idea) {
+									idea.vote_count = votes.filter(v => v.idea_id === primaryId).length;
+									idea.updated_at = updatedAt;
+								}
+								return { meta: { changes: idea ? 1 : 0 } };
+							}
+							// UPDATE ideas SET status='merged'
+							if (s.includes("STATUS = 'MERGED'")) {
+								const [primaryId, updatedAt, ...mergeIds] = args;
+								for (const idea of ideas.filter(i => mergeIds.includes(i.id))) {
+									idea.status = 'merged';
+									idea.merged_into_id = primaryId;
+									idea.updated_at = updatedAt;
+								}
+								return { meta: { changes: mergeIds.length } };
+							}
+							// UPDATE ideas SET status='removed'
+							if (s.includes("STATUS = 'REMOVED'")) {
+								const [updatedAt, id] = args;
+								const idea = ideas.find(i => i.id === id);
+								if (!idea) return { meta: { changes: 0 } };
+								idea.status = 'removed';
+								idea.updated_at = updatedAt;
+								return { meta: { changes: 1 } };
+							}
+							return { meta: { changes: 0 } };
+						},
+
+						async all() {
+							// listIdeasWithMyVote query
+							if (s.includes('CASE WHEN V.ATTENDEE_ID IS NULL')) {
+								const attendeeId = args[0];
+								const results = ideas
+									.filter(i => ['open', 'scheduled'].includes(i.status))
+									.map(i => ({
+										...i,
+										my_vote: votes.some(v => v.idea_id === i.id && v.attendee_id === attendeeId) ? 1 : 0,
+									}));
+								return { results };
+							}
+							return { results: [] };
+						},
+
+						async first() {
+							// getIdea: SELECT * FROM ideas WHERE id = ?
+							if (s.includes('FROM IDEAS WHERE ID = ?')) {
+								return ideas.find(i => i.id === args[0]) ?? null;
+							}
+							return null;
+						},
+					};
+				},
+			};
+		},
+	};
+	return self;
+}
+
+// ---------------------------------------------------------------------------
+// Test app factory
+// ---------------------------------------------------------------------------
+
+function buildApp(overrides = {}) {
+	const app = new Hono();
+	const doEnv = fakeDo();
+	const env = {
+		DB: overrides.db ?? fakeDb(),
+		KV: overrides.kv ?? fakeKv(),
+		EVENT_ROOM: doEnv.EVENT_ROOM,
+	};
+
+	app.use('*', async (c, next) => {
+		c.set('attendeeId', overrides.attendeeId !== undefined ? overrides.attendeeId : 'att_test');
+		c.set('role', overrides.role ?? undefined);
+		await next();
+	});
+	app.route('/', ideasApp);
+
+	app._env = env;
+	app._sent = doEnv._sent;
+	return app;
+}
+
+async function req(app, method, path, opts = {}) {
+	const { body, headers = {} } = opts;
+	const init = { method, headers: { 'content-type': 'application/json', ...headers } };
+	if (body !== undefined) init.body = JSON.stringify(body);
+	return app.request(path, init, app._env);
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('GET /', () => {
+	it('returns an ideas array', async () => {
+		const db = fakeDb({ ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }] });
+		const app = buildApp({ db });
+		const res = await req(app, 'GET', '/');
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(Array.isArray(json)).toBe(true);
+		expect(json[0].id).toBe('idea_1');
+	});
+});
+
+describe('POST /', () => {
+	it('returns 201 and broadcasts idea:added on success', async () => {
+		const app = buildApp();
+		const res = await req(app, 'POST', '/', { body: { title: 'My idea' } });
+		expect(res.status).toBe(201);
+		const json = await res.json();
+		expect(json.title).toBe('My idea');
+		expect(app._sent.some(e => e.body.type === 'idea:added')).toBe(true);
+	});
+
+	it('returns 400 when title is missing', async () => {
+		const app = buildApp();
+		const res = await req(app, 'POST', '/', { body: { title: '' } });
+		expect(res.status).toBe(400);
+	});
+
+});
+
+describe('POST /:id/vote', () => {
+	it('first vote increments count and returns my_vote: true', async () => {
+		const db = fakeDb({
+			ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 0, description: '', submitter_id: 'att_other', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }],
+		});
+		const app = buildApp({ db });
+		const res = await req(app, 'POST', '/idea_1/vote');
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(json.my_vote).toBe(true);
+		expect(json.vote_count).toBe(1);
+		expect(app._sent.some(e => e.body.type === 'idea:updated')).toBe(true);
+	});
+
+	it('duplicate vote returns existing idea with my_vote: true and no double-increment', async () => {
+		const db = fakeDb({
+			ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 1, description: '', submitter_id: 'att_other', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }],
+			votes: [{ idea_id: 'idea_1', attendee_id: 'att_test', created_at: 1 }],
+		});
+		const app = buildApp({ db });
+		const res = await req(app, 'POST', '/idea_1/vote');
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(json.my_vote).toBe(true);
+		expect(json.vote_count).toBe(1);
+	});
+
+});
+
+describe('DELETE /:id/vote', () => {
+	it('removes vote, decrements count, and broadcasts idea:updated', async () => {
+		const db = fakeDb({
+			ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 1, description: '', submitter_id: 'att_other', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }],
+			votes: [{ idea_id: 'idea_1', attendee_id: 'att_test', created_at: 1 }],
+		});
+		const app = buildApp({ db });
+		const res = await req(app, 'DELETE', '/idea_1/vote');
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(json.my_vote).toBe(false);
+		expect(json.vote_count).toBe(0);
+		expect(app._sent.some(e => e.body.type === 'idea:updated')).toBe(true);
+	});
+
+});
+
+describe('POST /:id/assign', () => {
+	it('returns 403 without facilitator role', async () => {
+		const app = buildApp({ role: undefined });
+		const res = await req(app, 'POST', '/idea_1/assign', { body: { slot_id: 'slot_1', room_id: 'room_1' } });
+		expect(res.status).toBe(403);
+	});
+
+	it('assigns slot and room with facilitator role', async () => {
+		const db = fakeDb({
+			ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'POST', '/idea_1/assign', { body: { slot_id: 'slot_1', room_id: 'room_1' } });
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(json.slot_id).toBe('slot_1');
+		expect(json.room_id).toBe('room_1');
+	});
+
+	it('returns 409 when the DB throws a UNIQUE error', async () => {
+		const db = fakeDb({
+			ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }],
+			assignThrowsUnique: true,
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'POST', '/idea_1/assign', { body: { slot_id: 'slot_1', room_id: 'room_1' } });
+		expect(res.status).toBe(409);
+	});
+});
+
+describe('POST /merge', () => {
+	it('returns 403 without facilitator role', async () => {
+		const app = buildApp({ role: undefined });
+		const res = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		expect(res.status).toBe(403);
+	});
+
+	it('returns 400 when primary_id is missing', async () => {
+		const app = buildApp({ role: 'facilitator' });
+		const res = await req(app, 'POST', '/merge', { body: { merge_ids: ['idea_2'] } });
+		expect(res.status).toBe(400);
+	});
+
+	it('merges ideas: copies votes to primary and marks merged ids', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'Primary', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'Merged', status: 'open', vote_count: 1, description: '', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+			],
+			votes: [{ idea_id: 'idea_2', attendee_id: 'att_voter', created_at: 1 }],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(json.primary.id).toBe('idea_1');
+		expect(json.merged).toEqual(['idea_2']);
+		const merged = db.ideas.find(i => i.id === 'idea_2');
+		expect(merged.status).toBe('merged');
+		expect(merged.merged_into_id).toBe('idea_1');
+	});
+});
+
+describe('DELETE /:id', () => {
+	it('returns 403 without facilitator role', async () => {
+		const app = buildApp({ role: undefined });
+		const res = await req(app, 'DELETE', '/idea_1');
+		expect(res.status).toBe(403);
+	});
+
+	it('soft-deletes the idea and broadcasts idea:removed', async () => {
+		const db = fakeDb({
+			ideas: [{ id: 'idea_1', title: 'T', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 }],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'DELETE', '/idea_1');
+		expect(res.status).toBe(200);
+		expect(db.ideas.find(i => i.id === 'idea_1').status).toBe('removed');
+		expect(app._sent.some(e => e.body.type === 'idea:removed' && e.body.id === 'idea_1')).toBe(true);
+	});
+});

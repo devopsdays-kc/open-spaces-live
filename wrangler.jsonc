@@ -1,69 +1,66 @@
 /**
- * For more details on how to configure Wrangler, refer to:
- * https://developers.cloudflare.com/workers/wrangler/configuration/
+ * Open Spaces Live — Cloudflare Workers configuration.
+ * Secrets to set with `wrangler secret put`:
+ *   COOKIE_SECRET    HMAC key for signed attendee cookies (32+ random chars)
+ *   ATTENDEE_SALT    Salt for hashing cf-connecting-ip (rotated per event optional)
+ *   MAILGUN_API_KEY  Admin magic-link email sender
+ *   MAILGUN_DOMAIN
+ *   MAILGUN_FROM
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "open-spaces-live",
 	"main": "worker/index.js",
-	"build": {
-		"command": "npm run build"
+	"compatibility_date": "2025-08-03",
+	"compatibility_flags": ["nodejs_compat"],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "open-spaces-live-db",
+			"database_id": "76860281-584b-4c3a-b9b6-0cf7495e5d2d"
+		}
+	],
+	// "routes": [
+	// 	{
+	// 	"pattern": "open-spaces.devopsdayskc.com",
+	// 	"custom_domain": true
+	// 	}
+	// ],
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "011c2761047545e88880168e01fe8cd8"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "EVENT_ROOM",
+				"class_name": "EventRoom"
+			}
+		]
 	},
 	"migrations": [
 		{
 			"tag": "v1",
 			"new_classes": []
-		}
-	],
-	"d1_databases": [
+		},
 		{
-			"binding": "DB",
-			"database_name": "open-spaces-live",
-			"database_id": "e9a8a706-a0e1-4eba-9417-80929711675f"
+			"tag": "v2",
+			"new_sqlite_classes": ["EventRoom"]
 		}
 	],
-	"kv_namespaces": [
-		{
-			"binding": "KV",
-			"id": "1f2073094e1e44339f8aecb8510437d4"
-		}
-	],
-	"compatibility_date": "2025-08-03",
 	"assets": {
 		"directory": "./dist/client",
 		"not_found_handling": "single-page-application"
 	},
 	"observability": {
-		"enabled": true
-	}
-	/**
-	 * Smart Placement
-	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": { "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
-	/**
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": { "directory": "./public/", "binding": "ASSETS" }
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
+		"logs": {
+			"enabled": true,
+			"invocation_logs": true
+		},
+		"traces": {
+			"enabled": true
+		}
+  }
 }
