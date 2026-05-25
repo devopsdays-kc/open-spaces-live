@@ -24,6 +24,7 @@ export default function Header() {
 				<Link to="/">{title}</Link>
 			</span>
 			<nav className="auth-section">
+				<Link to="https://devopsdays.org/open-space-format/" target="_blank" className="header-link" rel="noopener noreferrer">About Open Spaces</Link>
 				<Link to="/schedule" className="header-link">Schedule</Link>
 				<Link to="/projector" className="header-link">Projector</Link>
 				{(role === 'facilitator' || role === 'admin') && (
