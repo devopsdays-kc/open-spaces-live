@@ -72,6 +72,24 @@ button:hover {
 	font-weight: bold;
 }
 
+.open-spaces-info-link {
+	display: inline-block;
+	margin-top: 0.75rem;
+	padding: 0.5rem 1.25rem;
+	font-size: 1rem;
+	font-weight: 500;
+	color: var(--color-accent, #6366f1);
+	border: 2px solid var(--color-accent, #6366f1);
+	border-radius: 6px;
+	text-decoration: none;
+	transition: background-color 0.15s, color 0.15s;
+}
+
+.open-spaces-info-link:hover {
+	background-color: var(--color-accent, #6366f1);
+	color: #fff;
+}
+
 
 /* Modal Styles */
 .modal-backdrop {

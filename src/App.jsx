@@ -156,6 +156,14 @@ function HomePage({ showLoginModal, setShowLoginModal, user }) {
 			{/* The main content structure was incorrect, it should not be inside the fragment but rendered by the <App> Router */}
 			<div className="main-title-section">
 				<h1>Marketplace of Ideas</h1>
+				<a
+					className="open-spaces-info-link"
+					href="https://devopsdays.org/open-space-format/"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					What is Open Spaces?
+				</a>
 			</div>
 
 			<div className="card new-idea-form">
