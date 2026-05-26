@@ -28,13 +28,16 @@ api.route('/schedule', schedule);
 api.route('/auth', auth);
 api.route('/admin', admin);
 
-api.get('/ws', handleWsUpgrade);
-
 api.notFound((c) => c.json({ error: 'not found' }, 404));
 api.onError((err, c) => {
 	console.error('api error', err);
 	return c.json({ error: 'internal error' }, 500);
 });
+
+// WebSocket upgrade must bypass the api middleware chain — any header
+// modification (setCookie, secureHeaders) reconstructs the Response and
+// strips the Cloudflare webSocket property required for the 101 upgrade.
+app.get('/api/ws', handleWsUpgrade);
 
 app.route('/api', api);
 

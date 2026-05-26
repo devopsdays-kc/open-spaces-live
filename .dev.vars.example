@@ -1,0 +1,5 @@
+COOKIE_SECRET=any-random-string-32-chars-or-longer
+ATTENDEE_SALT=any-random-string
+MAILGUN_API_KEY=your-mailgun-api-key
+MAILGUN_DOMAIN=your-mailgun-domain
+MAILGUN_FROM=noreply@your-domain.com
