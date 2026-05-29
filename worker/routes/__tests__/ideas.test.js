@@ -161,33 +161,42 @@ function fakeDb(opts = {}) {
 							return { meta: { changes: 0 } };
 						},
 
-						async all() {
-							// listIdeasWithMyVote query
-							if (s.includes('CASE WHEN V.ATTENDEE_ID IS NULL')) {
-								const attendeeId = args[0];
-								const results = ideas
-									.filter(i => ['open', 'scheduled'].includes(i.status))
-									.map(i => ({
-										...i,
-										my_vote: votes.some(v => v.idea_id === i.id && v.attendee_id === attendeeId) ? 1 : 0,
-									}));
-								return { results };
-							}
-							return { results: [] };
-						},
+								async all() {
+									// listIdeasWithMyVote query
+									if (s.includes('CASE WHEN V.ATTENDEE_ID IS NULL')) {
+										const attendeeId = args[0];
+										const results = ideas
+											.filter(i => ['open', 'scheduled'].includes(i.status))
+											.map(i => ({
+												...i,
+												my_vote: votes.some(v => v.idea_id === i.id && v.attendee_id === attendeeId) ? 1 : 0,
+										}));
+									return { results };
+								},
+								async all() {
+									if (s.includes("FROM IDEAS WHERE STATUS = 'MERGED'") && s.includes('MERGED_INTO_ID IN')) {
+										const mergeIntoIds = args;
+										const results = ideas
+											.filter((i) => i.status === 'merged' && mergeIntoIds.includes(i.merged_into_id))
+											.map((i) => ({ id: i.id, title: i.title, merged_into_id: i.merged_into_id }));
+										return { results };
+									}
+									return { results: [] };
+								},
+								async first() {
+									if (s.includes('FROM IDEAS WHERE ID = ?')) {
+										return ideas.find(i => i.id === args[0]) ?? null;
+									}
+									return null;
+								},
+							};
+											return ideas.find(i => i.id === args[0]) ?? null;
+									}
 
-						async first() {
-							// getIdea: SELECT * FROM ideas WHERE id = ?
-							if (s.includes('FROM IDEAS WHERE ID = ?')) {
-								return ideas.find(i => i.id === args[0]) ?? null;
-							}
-							return null;
-						},
-					};
-				},
-			};
-		},
-	};
+									return null;
+								},
+							},
+						};
 	return self;
 }
 
@@ -236,6 +245,20 @@ describe('GET /', () => {
 		const json = await res.json();
 		expect(Array.isArray(json)).toBe(true);
 		expect(json[0].id).toBe('idea_1');
+	});
+
+	it('includes merged idea metadata for a primary idea', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'Primary', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'Merged-In Idea', status: 'merged', vote_count: 1, description: '', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: 'idea_1', created_at: 2, updated_at: 2 },
+			],
+		});
+		const app = buildApp({ db });
+		const res = await req(app, 'GET', '/');
+		expect(res.status).toBe(200);
+		const json = await res.json();
+		expect(json[0].merged_ideas).toEqual([{ id: 'idea_2', title: 'Merged-In Idea' }]);
 	});
 });
 

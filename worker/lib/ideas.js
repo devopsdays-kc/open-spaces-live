@@ -14,9 +14,39 @@ export async function listIdeasWithMyVote(db, attendeeId) {
 		)
 		.bind(attendeeId || '')
 		.all();
-	return results.map((r) => ({ ...r, my_vote: !!r.my_vote }));
+
+	const ideas = (results ?? []).map((r) => ({ ...r, my_vote: !!r.my_vote }));
+	if (ideas.length === 0) return [];
+
+	const ids = ideas.map((idea) => idea.id);
+	const placeholders = ids.map(() => '?').join(',');
+	const mergedQuery = await db
+		.prepare(
+			`SELECT id, title, merged_into_id
+			   FROM ideas
+			   WHERE status = 'merged' AND merged_into_id IN (${placeholders})`,
+		)
+		.bind(...ids)
+		.all();
+
+	const mergedMap = (mergedQuery.results ?? []).reduce((acc, row) => {
+		acc[row.merged_into_id] = acc[row.merged_into_id] || [];
+		acc[row.merged_into_id].push({ id: row.id, title: row.title });
+		return acc;
+	}, {});
+
+	return ideas.map((idea) => ({
+		...idea,
+		merged_ideas: mergedMap[idea.id] ?? [],
+	}));
 }
 
 export async function getIdea(db, id) {
-	return db.prepare('SELECT * FROM ideas WHERE id = ?').bind(id).first();
+	const idea = await db.prepare('SELECT * FROM ideas WHERE id = ?').bind(id).first();
+	if (!idea) return null;
+	const { results } = await db
+		.prepare('SELECT id, title FROM ideas WHERE status = \'merged\' AND merged_into_id = ?')
+		.bind(id)
+		.all();
+	return { ...idea, merged_ideas: results ?? [] };
 }

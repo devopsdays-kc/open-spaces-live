@@ -63,7 +63,7 @@ describe('getIdea', () => {
 		const idea = { id: 'idea_42', title: 'Test', vote_count: 0 };
 		const db = fakeDb({ firstRow: idea });
 		const result = await getIdea(db, 'idea_42');
-		expect(result).toEqual(idea);
+		expect(result).toEqual({ ...idea, merged_ideas: [] });
 	});
 
 	it('returns null when not found', async () => {

@@ -33,6 +33,16 @@ export default function IdeaCard({ idea, selectable, selected, onSelectChange })
 			)}
 			<h3>{idea.title}</h3>
 			{idea.description && <p>{idea.description}</p>}
+			{idea.merged_ideas?.length > 0 && (
+				<div className="merged-ideas">
+					<strong>Merged in:</strong>
+					<ul>
+						{idea.merged_ideas.map((merged) => (
+							<li key={merged.id}>{merged.title}</li>
+						))}
+					</ul>
+				</div>
+			)}
 			<div className="post-it-footer">
 				<span className="vote-count">{idea.vote_count} vote{idea.vote_count === 1 ? '' : 's'}</span>
 				<button
