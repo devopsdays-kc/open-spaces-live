@@ -130,6 +130,42 @@ code, .code-display {
 
 .select-corner { position: absolute; top: 6px; left: 6px; }
 
+/* ---- Merged-in ideas (provenance on the primary post-it) ---- */
+.merged-ideas {
+	margin-top: 0.6rem;
+	padding-top: 0.5rem;
+	border-top: 1px dashed rgba(0, 0, 0, 0.25);
+}
+.merged-ideas-label {
+	display: block;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: #6b6b4a;
+	margin-bottom: 0.3rem;
+}
+.merged-ideas ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.merged-idea {
+	background-color: rgba(0, 0, 0, 0.05);
+	border-radius: 3px;
+	padding: 0.3rem 0.45rem;
+}
+.merged-tag {
+	display: inline-block;
+	background-color: #b8860b;
+	color: #fff;
+	font-size: 0.62rem;
+	font-weight: bold;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	padding: 1px 6px;
+	border-radius: 10px;
+	margin-right: 0.4rem;
+	vertical-align: middle;
+}
+.merged-idea-title { font-weight: bold; }
+.merged-idea-desc { display: block; font-size: 0.85rem; color: #444; margin-top: 0.15rem; }
+
 /* ---- Dashboard tabs ---- */
 .dashboard-tabs {
 	display: flex;

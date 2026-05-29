@@ -139,6 +139,17 @@ function fakeDb(opts = {}) {
 								}
 								return { meta: { changes: idea ? 1 : 0 } };
 							}
+							// UPDATE ideas SET merged_into_id = ? WHERE merged_into_id IN (...) (re-point grandchildren)
+							if (s.includes('SET MERGED_INTO_ID = ?') && s.includes('WHERE MERGED_INTO_ID IN')) {
+								const [primaryId, updatedAt, ...oldParents] = args;
+								let changes = 0;
+								for (const idea of ideas.filter(i => oldParents.includes(i.merged_into_id))) {
+									idea.merged_into_id = primaryId;
+									idea.updated_at = updatedAt;
+									changes++;
+								}
+								return { meta: { changes } };
+							}
 							// UPDATE ideas SET status='merged'
 							if (s.includes("STATUS = 'MERGED'")) {
 								const [primaryId, updatedAt, ...mergeIds] = args;
@@ -172,6 +183,14 @@ function fakeDb(opts = {}) {
 										my_vote: votes.some(v => v.idea_id === i.id && v.attendee_id === attendeeId) ? 1 : 0,
 									}));
 								return { results };
+							}
+							// listIdeasWithMyVote: all merged children, grouped by primary
+							if (s.includes("STATUS = 'MERGED' AND MERGED_INTO_ID IS NOT NULL")) {
+								return { results: ideas.filter(i => i.status === 'merged' && i.merged_into_id) };
+							}
+							// getIdea: merged children for one primary
+							if (s.includes("MERGED_INTO_ID = ? AND STATUS = 'MERGED'")) {
+								return { results: ideas.filter(i => i.status === 'merged' && i.merged_into_id === args[0]) };
 							}
 							return { results: [] };
 						},
@@ -363,6 +382,72 @@ describe('POST /merge', () => {
 		const merged = db.ideas.find(i => i.id === 'idea_2');
 		expect(merged.status).toBe('merged');
 		expect(merged.merged_into_id).toBe('idea_1');
+	});
+
+	it('rolls the merged idea\'s votes into the primary vote_count', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'Primary', status: 'open', vote_count: 1, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'Merged', status: 'open', vote_count: 2, description: '', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: null, created_at: 2, updated_at: 2 },
+			],
+			votes: [
+				{ idea_id: 'idea_1', attendee_id: 'att_a', created_at: 1 },
+				{ idea_id: 'idea_2', attendee_id: 'att_b', created_at: 1 },
+				{ idea_id: 'idea_2', attendee_id: 'att_c', created_at: 1 },
+			],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		const json = await res.json();
+		// 3 distinct voters total (att_a + att_b + att_c).
+		expect(json.primary.vote_count).toBe(3);
+		expect(db.ideas.find(i => i.id === 'idea_1').vote_count).toBe(3);
+	});
+
+	it('does not double-count a voter who voted on both ideas', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'Primary', status: 'open', vote_count: 1, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'Merged', status: 'open', vote_count: 1, description: '', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: null, created_at: 2, updated_at: 2 },
+			],
+			votes: [
+				{ idea_id: 'idea_1', attendee_id: 'att_shared', created_at: 1 },
+				{ idea_id: 'idea_2', attendee_id: 'att_shared', created_at: 1 },
+			],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		const json = await res.json();
+		// Same person on both -> still counts once.
+		expect(json.primary.vote_count).toBe(1);
+	});
+
+	it('surfaces merged-in idea content on the primary', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'Primary', status: 'open', vote_count: 0, description: 'p', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'Duplicate topic', status: 'open', vote_count: 1, description: 'same thing', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: null, created_at: 2, updated_at: 2 },
+			],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		const res = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		const json = await res.json();
+		expect(json.primary.merged_ideas).toHaveLength(1);
+		expect(json.primary.merged_ideas[0]).toMatchObject({ id: 'idea_2', title: 'Duplicate topic', description: 'same thing' });
+	});
+
+	it('keeps the merge tree flat by re-pointing grandchildren to the new primary', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'New primary', status: 'open', vote_count: 0, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'Old primary', status: 'open', vote_count: 0, description: '', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: null, created_at: 2, updated_at: 2 },
+				{ id: 'idea_3', title: 'Grandchild', status: 'merged', vote_count: 0, description: '', submitter_id: 'att_3', slot_id: null, room_id: null, merged_into_id: 'idea_2', created_at: 3, updated_at: 3 },
+			],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+		await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		expect(db.ideas.find(i => i.id === 'idea_2').merged_into_id).toBe('idea_1');
+		expect(db.ideas.find(i => i.id === 'idea_3').merged_into_id).toBe('idea_1');
 	});
 });
 

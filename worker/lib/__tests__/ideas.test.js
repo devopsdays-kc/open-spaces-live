@@ -48,7 +48,9 @@ describe('listIdeasWithMyVote', () => {
 		const db = {
 			prepare: () => ({
 				bind: (...args) => {
-					captured = args;
+					// Only the main list query binds the attendee id; the merged-children
+					// query binds no args. Capture the first (main) call.
+					if (captured === undefined) captured = args;
 					return { all: async () => ({ results: [] }) };
 				},
 			}),
