@@ -172,6 +172,15 @@ app.post('/merge', requireFacilitator, async (c) => {
 				  WHERE id = ?`,
 			)
 			.bind(primaryId, now, primaryId),
+		// Re-point any ideas previously merged into one of these so the tree stays
+		// flat (depth 1) — every merged idea points directly at a visible primary.
+		c.env.DB
+			.prepare(
+				`UPDATE ideas
+				    SET merged_into_id = ?, updated_at = ?
+				  WHERE merged_into_id IN (${placeholders})`,
+			)
+			.bind(primaryId, now, ...mergeIds),
 		c.env.DB
 			.prepare(
 				`UPDATE ideas
