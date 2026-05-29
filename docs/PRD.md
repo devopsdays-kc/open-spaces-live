@@ -53,7 +53,7 @@ The traditional method of using physical sticky notes for idea submission and vo
 
 - A full-bleed, dark-theme view at `/projector` designed for a 1080p conference projector.
 - Two modes: `?mode=ideas` (top-voted ideas as large cards) and `?mode=schedule` (full grid with current time slot highlighted).
-- Auto-rotates between modes every 30 seconds if no `?mode` parameter is set.
+- Defaults to a stable view (the ideas board) — it does not switch modes on its own. Auto-rotation is opt-in via `?rotate` (every 30 seconds), with a configurable interval via `?rotate=<seconds>` (minimum 5s). A `?mode` parameter always pins a single view and disables rotation.
 - Fully WebSocket-subscribed — updates live without any interaction.
 
 ## 6. Technical Requirements
