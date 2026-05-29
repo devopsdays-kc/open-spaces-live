@@ -1,9 +1,10 @@
 import { useStore } from '../lib/store.js';
 import { endpoints } from '../lib/api.js';
 
-export default function IdeaCard({ idea, selectable, selected, onSelectChange }) {
+export default function IdeaCard({ idea, selectable, selected, onSelectChange, isPrimary, onMakePrimary }) {
 	const optimisticVote = useStore((s) => s.optimisticVote);
 	const role = useStore((s) => s.role);
+	const canModerate = selectable && (role === 'facilitator' || role === 'admin');
 
 	async function toggleVote() {
 		const wasVoted = idea.my_vote;
@@ -20,9 +21,10 @@ export default function IdeaCard({ idea, selectable, selected, onSelectChange })
 	const scheduled = !!idea.slot_id;
 
 	return (
-		<div className={`post-it ${scheduled ? 'scheduled' : ''}`}>
+		<div className={`post-it ${scheduled ? 'scheduled' : ''} ${canModerate && selected ? 'selected' : ''} ${isPrimary ? 'primary' : ''}`}>
 			{scheduled && <div className="scheduled-badge">Scheduled</div>}
-			{selectable && (role === 'facilitator' || role === 'admin') && (
+			{isPrimary && <div className="primary-badge">Primary</div>}
+			{canModerate && (
 				<label className="select-corner">
 					<input
 						type="checkbox"
@@ -30,6 +32,17 @@ export default function IdeaCard({ idea, selectable, selected, onSelectChange })
 						onChange={(e) => onSelectChange?.(idea.id, e.target.checked)}
 					/>
 				</label>
+			)}
+			{canModerate && selected && onMakePrimary && (
+				<button
+					type="button"
+					className={`make-primary ${isPrimary ? 'is-primary' : ''}`}
+					onClick={() => onMakePrimary(idea.id)}
+					disabled={isPrimary}
+					title={isPrimary ? 'This idea will be kept as the primary' : 'Keep this idea as the primary when merging'}
+				>
+					{isPrimary ? '★ Primary' : '☆ Make primary'}
+				</button>
 			)}
 			<h3>{idea.title}</h3>
 			{idea.description && <p>{idea.description}</p>}
