@@ -3,20 +3,33 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore, VISIBLE_STATUSES } from '../lib/store.js';
 
 const MODES = ['ideas', 'schedule'];
-const ROTATE_MS = 30000;
+const DEFAULT_ROTATE_MS = 30000;
+const MIN_ROTATE_MS = 5000;
+
+// Auto-rotation is opt-in. Without `?rotate`, the projector stays on the chosen
+// view so it never flips to the schedule on its own (see issue #3). `?rotate`
+// enables cycling for unattended displays; `?rotate=45` sets a 45s interval.
+function parseRotate(params) {
+	if (!params.has('rotate')) return 0;
+	const raw = params.get('rotate');
+	const seconds = Number.parseInt(raw ?? '', 10);
+	if (Number.isFinite(seconds) && seconds > 0) return Math.max(seconds * 1000, MIN_ROTATE_MS);
+	return DEFAULT_ROTATE_MS;
+}
 
 export default function Projection() {
 	const [params] = useSearchParams();
 	const forced = params.get('mode');
+	const rotateMs = parseRotate(params);
 	const [mode, setMode] = useState(forced && MODES.includes(forced) ? forced : 'ideas');
 
 	useEffect(() => {
-		if (forced) return undefined;
+		if (forced || !rotateMs) return undefined;
 		const t = setInterval(() => {
 			setMode((m) => (m === 'ideas' ? 'schedule' : 'ideas'));
-		}, ROTATE_MS);
+		}, rotateMs);
 		return () => clearInterval(t);
-	}, [forced]);
+	}, [forced, rotateMs]);
 
 	return (
 		<div className="projection">

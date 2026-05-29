@@ -70,7 +70,7 @@ graph TD
 - **Routes:**
   - `/` — Marketplace: submit ideas, vote, live updates
   - `/schedule` — read-only schedule grid
-  - `/projector` — big-screen projection view (auto-rotating, WS-subscribed)
+  - `/projector` — big-screen projection view (stable by default; opt-in rotation via `?rotate`, WS-subscribed)
   - `/dashboard` — facilitator/admin: Ideas, Schedule Builder, Admin tabs
   - `/login-code` — facilitator event-code entry
   - `/admin-login` — admin magic-link request
