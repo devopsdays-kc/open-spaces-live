@@ -31,8 +31,22 @@ function IdeaModeration() {
 	const ideas = useStore((s) => s.ideas);
 	const refreshIdeas = useStore((s) => s.refreshIdeas);
 	const [selected, setSelected] = useState(new Set());
+	const [primaryId, setPrimaryId] = useState(null);
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState(null);
+
+	const visible = ideas.filter((i) => VISIBLE_STATUSES.has(i.status));
+	const selectedIdeas = visible.filter((i) => selected.has(i.id));
+
+	// The primary is the kept idea. Default to the highest-voted selection
+	// (visible is already sorted by votes), but honor an explicit override.
+	const effectivePrimaryId =
+		primaryId && selected.has(primaryId) ? primaryId : selectedIdeas[0]?.id ?? null;
+	const primaryIdea = selectedIdeas.find((i) => i.id === effectivePrimaryId) ?? null;
+	const mergeTargets = selectedIdeas.filter((i) => i.id !== effectivePrimaryId);
 
 	function onSelectChange(id, isOn) {
+		setError(null);
 		setSelected((prev) => {
 			const next = new Set(prev);
 			if (isOn) next.add(id); else next.delete(id);
@@ -40,21 +54,24 @@ function IdeaModeration() {
 		});
 	}
 
+	function clearSelection() {
+		setSelected(new Set());
+		setPrimaryId(null);
+		setError(null);
+	}
+
 	async function doMerge() {
-		const ids = [...selected];
-		if (ids.length < 2) {
-			alert('Select at least two ideas to merge.');
-			return;
-		}
-		const primary = ids[0];
-		const rest = ids.slice(1);
-		if (!confirm(`Merge ${rest.length} idea(s) into "${ideas.find((i) => i.id === primary)?.title}"?`)) return;
+		if (!primaryIdea || mergeTargets.length === 0) return;
+		setBusy(true);
+		setError(null);
 		try {
-			await endpoints.merge(primary, rest);
-			setSelected(new Set());
+			await endpoints.merge(primaryIdea.id, mergeTargets.map((i) => i.id));
+			clearSelection();
 			refreshIdeas();
 		} catch (e) {
-			alert(e.message);
+			setError(e.message || 'Merge failed');
+		} finally {
+			setBusy(false);
 		}
 	}
 
@@ -62,20 +79,60 @@ function IdeaModeration() {
 		const ids = [...selected];
 		if (ids.length === 0) return;
 		if (!confirm(`Remove ${ids.length} idea(s) from the board?`)) return;
-		await Promise.allSettled(ids.map((id) => endpoints.deleteIdea(id).catch((e) => console.error(e))));
-		setSelected(new Set());
-		refreshIdeas();
+		setBusy(true);
+		setError(null);
+		try {
+			const results = await Promise.allSettled(ids.map((id) => endpoints.deleteIdea(id)));
+			const failed = results.filter((r) => r.status === 'rejected').length;
+			if (failed) setError(`${failed} idea(s) could not be removed.`);
+			clearSelection();
+			refreshIdeas();
+		} finally {
+			setBusy(false);
+		}
 	}
-
-	const visible = ideas.filter((i) => VISIBLE_STATUSES.has(i.status));
 
 	return (
 		<>
 			<div className="moderation-bar">
 				<span>{selected.size} selected</span>
-				<button type="button" onClick={doMerge} disabled={selected.size < 2}>Merge (first = primary)</button>
-				<button type="button" onClick={doDelete} disabled={selected.size === 0} className="danger">Remove</button>
+				<button type="button" onClick={doDelete} disabled={selected.size === 0 || busy} className="danger">
+					Remove
+				</button>
+				{selected.size > 0 && (
+					<button type="button" onClick={clearSelection} disabled={busy} className="ghost">
+						Clear
+					</button>
+				)}
 			</div>
+
+			{selected.size >= 2 && primaryIdea && (
+				<div className="merge-panel">
+					<div className="merge-panel-summary">
+						<strong>Merge {mergeTargets.length} idea{mergeTargets.length === 1 ? '' : 's'}</strong> into
+						<span className="merge-primary-name"> {primaryIdea.title}</span>
+						<span className="merge-hint"> — the others are kept as “merged in” under it, and their votes roll up.</span>
+					</div>
+					<ol className="merge-target-list">
+						{mergeTargets.map((i) => (
+							<li key={i.id}>{i.title}</li>
+						))}
+					</ol>
+					<div className="merge-panel-actions">
+						<button type="button" onClick={doMerge} disabled={busy} className="primary-action">
+							{busy ? 'Merging…' : `Merge into “${primaryIdea.title}”`}
+						</button>
+						<span className="merge-tip">Tip: use “Make primary” on a card to choose which idea is kept.</span>
+					</div>
+				</div>
+			)}
+
+			{selected.size === 1 && (
+				<p className="merge-help">Select at least one more idea to enable merging.</p>
+			)}
+
+			{error && <p className="moderation-error" role="alert">{error}</p>}
+
 			<div className="post-it-board">
 				{visible.map((idea) => (
 					<IdeaCard
@@ -84,6 +141,8 @@ function IdeaModeration() {
 						selectable
 						selected={selected.has(idea.id)}
 						onSelectChange={onSelectChange}
+						isPrimary={selected.size >= 2 && idea.id === effectivePrimaryId}
+						onMakePrimary={setPrimaryId}
 					/>
 				))}
 			</div>

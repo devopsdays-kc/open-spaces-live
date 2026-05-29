@@ -184,6 +184,61 @@ code, .code-display {
 .dashboard-tabs button.active { color: white; border-bottom-color: #007bff; }
 
 .moderation-bar { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+.moderation-bar button.ghost { background: none; border: 1px solid #666; color: #ccc; }
+.moderation-bar button.ghost:hover:not(:disabled) { border-color: #999; color: #fff; }
+
+/* ---- Merge UI ---- */
+.post-it.selected { outline: 3px solid #007bff; outline-offset: 2px; }
+.post-it.primary { outline: 3px solid #b8860b; box-shadow: 0 0 0 4px rgba(184, 134, 11, 0.25), 2px 2px 5px rgba(0, 0, 0, 0.15); }
+
+.primary-badge {
+	position: absolute;
+	top: -10px;
+	left: -10px;
+	background-color: #b8860b;
+	color: #fff;
+	padding: 4px 9px;
+	font-size: 0.75rem;
+	font-weight: bold;
+	border-radius: 20px;
+	transform: rotate(-12deg);
+	z-index: 2;
+}
+
+.make-primary {
+	align-self: flex-start;
+	margin: 0.1rem 0 0.4rem auto;
+	padding: 2px 8px;
+	font-size: 0.72rem;
+	font-family: system-ui, sans-serif;
+	background-color: rgba(184, 134, 11, 0.15);
+	color: #6b5200;
+	border: 1px solid #b8860b;
+	border-radius: 12px;
+	cursor: pointer;
+}
+.make-primary.is-primary { background-color: #b8860b; color: #fff; cursor: default; }
+
+.merge-panel {
+	background-color: #1f2733;
+	border: 1px solid #3a4656;
+	border-left: 4px solid #b8860b;
+	border-radius: 6px;
+	padding: 0.9rem 1.1rem;
+	margin-bottom: 1.2rem;
+}
+.merge-panel-summary { color: #e6e9ee; line-height: 1.5; }
+.merge-primary-name { color: #f0c040; font-weight: bold; }
+.merge-hint { color: #9aa6b4; font-size: 0.9rem; }
+.merge-target-list { margin: 0.5rem 0 0.8rem 1.2rem; color: #c4ccd6; }
+.merge-target-list li { margin: 0.15rem 0; }
+.merge-panel-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.merge-panel-actions .primary-action { background-color: #b8860b; color: #fff; font-weight: bold; }
+.merge-panel-actions .primary-action:hover:not(:disabled) { background-color: #9c7209; }
+.merge-tip { color: #8a96a4; font-size: 0.82rem; }
+
+.merge-help { color: #9aa6b4; font-style: italic; margin-bottom: 1rem; }
+.moderation-error { color: #ff6b6b; font-weight: bold; margin-bottom: 1rem; }
 
 /* ---- Schedule grid (read-only) ---- */
 .schedule-page h2 { margin-bottom: 1rem; }
