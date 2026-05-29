@@ -449,6 +449,41 @@ describe('POST /merge', () => {
 		expect(db.ideas.find(i => i.id === 'idea_2').merged_into_id).toBe('idea_1');
 		expect(db.ideas.find(i => i.id === 'idea_3').merged_into_id).toBe('idea_1');
 	});
+
+	it('merges a new idea into a primary that already absorbed another idea (sequential merges accumulate)', async () => {
+		const db = fakeDb({
+			ideas: [
+				{ id: 'idea_1', title: 'Primary', status: 'open', vote_count: 1, description: '', submitter_id: 'att_1', slot_id: null, room_id: null, merged_into_id: null, created_at: 1, updated_at: 1 },
+				{ id: 'idea_2', title: 'First merge', status: 'open', vote_count: 1, description: 'first', submitter_id: 'att_2', slot_id: null, room_id: null, merged_into_id: null, created_at: 2, updated_at: 2 },
+				{ id: 'idea_3', title: 'Second merge', status: 'open', vote_count: 1, description: 'second', submitter_id: 'att_3', slot_id: null, room_id: null, merged_into_id: null, created_at: 3, updated_at: 3 },
+			],
+			votes: [
+				{ idea_id: 'idea_1', attendee_id: 'att_a', created_at: 1 },
+				{ idea_id: 'idea_2', attendee_id: 'att_b', created_at: 1 },
+				{ idea_id: 'idea_3', attendee_id: 'att_c', created_at: 1 },
+			],
+		});
+		const app = buildApp({ db, role: 'facilitator' });
+
+		// First merge: idea_2 into idea_1.
+		const first = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_2'] } });
+		const firstJson = await first.json();
+		expect(firstJson.primary.vote_count).toBe(2);
+		expect(firstJson.primary.merged_ideas.map(m => m.id)).toEqual(['idea_2']);
+
+		// Second merge: a NEW idea_3 into the already-merged-into primary idea_1.
+		const second = await req(app, 'POST', '/merge', { body: { primary_id: 'idea_1', merge_ids: ['idea_3'] } });
+		const secondJson = await second.json();
+		// Votes accumulate across both merges (att_a + att_b + att_c).
+		expect(secondJson.primary.vote_count).toBe(3);
+		// Both previously-merged and newly-merged ideas surface on the primary.
+		expect(secondJson.primary.merged_ideas.map(m => m.id).sort()).toEqual(['idea_2', 'idea_3']);
+		// Both merged ideas point directly at the visible primary (flat tree).
+		expect(db.ideas.find(i => i.id === 'idea_2').merged_into_id).toBe('idea_1');
+		expect(db.ideas.find(i => i.id === 'idea_3').merged_into_id).toBe('idea_1');
+		expect(db.ideas.find(i => i.id === 'idea_2').status).toBe('merged');
+		expect(db.ideas.find(i => i.id === 'idea_3').status).toBe('merged');
+	});
 });
 
 describe('DELETE /:id', () => {
